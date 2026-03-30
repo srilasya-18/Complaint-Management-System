@@ -11,10 +11,14 @@ import graphQlResolvers from './graphql/resolvers/index.js';
 import getErrorCode from './helpers/errorCode.js';
 import cookieParser from 'cookie-parser';
 import { errorTypes } from './helpers/errorConstants.js';
-import { upload, compressAndSave } from './middleware/upload.js';  // ← new
+import { upload, compressAndSave } from './middleware/upload.js';
+import { mkdirSync } from 'fs';
 
 // Load .env
 dotenv.config();
+
+// ── Ensure uploads directory exists on startup ────────────────────────
+mkdirSync('uploads/complaints', { recursive: true });
 
 // Debug: Check env variables
 console.log("ENV CHECK:", {
@@ -37,18 +41,35 @@ app.use(cors(corsOptions));
 app.use(cookieParser());
 app.use(bodyParser.json());
 app.use('/', express.static(join(process.cwd(), 'public')));
-app.use('/uploads', express.static(join(process.cwd(), 'uploads')));  // ← serves photos
+app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
 app.use(isAuth);
 
 // ── File Upload Route (before GraphQL) ───────────────────────────────
+// FIX: added 4-argument error handler so multer/sharp errors are caught
+// and returned as JSON instead of crashing silently
 app.post(
   '/upload/complaint',
-  isAuth,
-  upload.array('photos', 3),
-  compressAndSave,
-  (req, res) => {
+  (req, res, next) => {
+    // isAuth already ran globally, but double-check here for safety
     if (!req.isAuth) {
       return res.status(401).json({ message: 'Unauthorized' });
+    }
+    next();
+  },
+  upload.array('photos', 3),
+  compressAndSave,
+  // ── 4-argument = Express error handler (catches multer + sharp errors)
+  (err, req, res, next) => {
+    console.error('Upload error:', err);
+    return res.status(500).json({
+      message: 'Photo upload failed',
+      error: err.message
+    });
+  },
+  // ── Success handler
+  (req, res) => {
+    if (!req.uploadedPhotos || req.uploadedPhotos.length === 0) {
+      return res.status(500).json({ message: 'Photo upload failed: no photos processed' });
     }
     res.json({ photos: req.uploadedPhotos });
   }

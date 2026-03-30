@@ -16,7 +16,7 @@ import {
   Box,
   Chip,
   LinearProgress,
-  Avatar
+  Avatar,
 } from "@mui/material";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import CancelIcon from "@mui/icons-material/Cancel";
@@ -30,13 +30,23 @@ const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
 });
 
-const CATEGORIES = ["Infrastructure", "Academic", "Hostel", "Canteen", "Transport", "Other"];
+const CATEGORIES = [
+  "Infrastructure",
+  "Academic",
+  "Hostel",
+  "Canteen",
+  "Transport",
+  "Other",
+];
 const PRIORITIES = [
-  { value: "low",    label: "Low" },
+  { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
-  { value: "high",   label: "High" },
+  { value: "high", label: "High" },
 ];
 const MAX_PHOTOS = 3;
+
+// ── FIX 1: Use port 5000, not 5001 ───────────────────────────────────
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 const CreateComplaint = (props) => {
   const [open, setOpen] = React.useState(props.openDialog);
@@ -48,6 +58,7 @@ const CreateComplaint = (props) => {
   const [snackMessage, setSnackMessage] = React.useState("");
   const [uploading, setUploading] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState(0);
+  const [saving, setSaving] = React.useState(false);
 
   const [complaintInput, setComplaintInput] = React.useState({
     complaint_category: "",
@@ -60,7 +71,7 @@ const CreateComplaint = (props) => {
   const [photos, setPhotos] = React.useState([]);
 
   const handleClose = () => {
-    photos.forEach(p => URL.revokeObjectURL(p.preview));
+    photos.forEach((p) => URL.revokeObjectURL(p.preview));
     navigate(-1);
     setOpen(false);
   };
@@ -94,7 +105,7 @@ const CreateComplaint = (props) => {
           };
         })
       );
-      setPhotos(prev => [...prev, ...compressed]);
+      setPhotos((prev) => [...prev, ...compressed]);
     } catch (err) {
       showSnack("error", "Failed to process images. Please try again.");
     } finally {
@@ -105,7 +116,7 @@ const CreateComplaint = (props) => {
   };
 
   const handleRemovePhoto = (index) => {
-    setPhotos(prev => {
+    setPhotos((prev) => {
       URL.revokeObjectURL(prev[index].preview);
       return prev.filter((_, i) => i !== index);
     });
@@ -118,52 +129,83 @@ const CreateComplaint = (props) => {
   };
 
   const handleSave = async () => {
-    if (!complaintInput.complaint_category) return showSnack("error", "Please select a category.");
-    if (!complaintInput.complaint_details)  return showSnack("error", "Please enter complaint details.");
+    if (!complaintInput.complaint_category)
+      return showSnack("error", "Please select a category.");
+    if (!complaintInput.complaint_details)
+      return showSnack("error", "Please enter complaint details.");
+
+    setSaving(true);
 
     try {
-      // step 1: upload photos if any
+      // ── Step 1: Upload photos to REST endpoint ──────────────────────
       let uploadedPhotos = [];
       if (photos.length > 0) {
         const formData = new FormData();
-        photos.forEach(p => formData.append("photos", p.file));
+        photos.forEach((p) => formData.append("photos", p.file));
 
-        const uploadRes = await fetch(
-          `${process.env.REACT_APP_API_URL || "http://localhost:5001"}/upload/complaint`,
-          {
-            method: "POST",
-            credentials: "include",
-            body: formData,
-          }
-        );
+        // ── FIX 1: Corrected port from 5001 → 5000 ─────────────────
+        const uploadRes = await fetch(`${API_BASE}/upload/complaint`, {
+          method: "POST",
+          credentials: "include", // sends auth cookie
+          // ⚠️ Do NOT set Content-Type — browser adds boundary automatically
+          body: formData,
+        });
 
-        if (!uploadRes.ok) throw new Error("Photo upload failed");
+        // ── FIX 2: Better error message from server ─────────────────
+        if (!uploadRes.ok) {
+          let errMsg = "Photo upload failed";
+          try {
+            const errData = await uploadRes.json();
+            errMsg = errData.message || errMsg;
+          } catch (_) {}
+          throw new Error(errMsg);
+        }
+
         const uploadData = await uploadRes.json();
+
+        // ── FIX 3: Guard against missing photos in response ─────────
+        if (!uploadData.photos || uploadData.photos.length === 0) {
+          throw new Error("Photo upload failed: no photos returned from server");
+        }
+
         uploadedPhotos = uploadData.photos;
       }
 
-      // step 2: create complaint via GraphQL
+      // ── Step 2: Create complaint via GraphQL with photo URLs ────────
       const res = await client.mutate({
         mutation: CREATE_COMPLAINT,
         variables: {
           complaintInput: {
             ...complaintInput,
-            photos: uploadedPhotos,
+            // ── FIX 4: Map to PhotoInput shape expected by GraphQL schema
+            photos: uploadedPhotos.map((p) => ({
+              url: p.url,
+              filename: p.filename || null,
+              originalName: p.originalName || null,
+              sizeKB: p.sizeKB || null,
+            })),
           },
         },
         refetchQueries: ["LIST_COMPLAINTS_FEW"],
       });
 
-      showSnack("success", `Complaint saved successfully with id ${res?.data?.createComplaint?._id}`);
+      showSnack(
+        "success",
+        `Complaint saved successfully with id ${res?.data?.createComplaint?._id}`
+      );
       setTimeout(() => handleClose(), 2000);
-
     } catch (error) {
-      if (error.message === "Unauthorized client in the scope") {
+      if (
+        error.message === "Unauthorized client in the scope" ||
+        error.message?.includes("Unauthorized")
+      ) {
         showSnack("error", "Session Timed Out. Please LogIn again!");
         authContext.logout();
       } else {
         showSnack("error", `Couldn't save the complaint: ${error?.message}`);
       }
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -173,51 +215,81 @@ const CreateComplaint = (props) => {
         <BottomSnackBar message={snackMessage} severity={severity} />
       )}
 
-      <Dialog fullScreen open={open} onClose={handleClose} TransitionComponent={Transition}>
-        <AppBar sx={{ position: "relative", backgroundColor: "#272626", padding: "6px" }}>
+      <Dialog
+        fullScreen
+        open={open}
+        onClose={handleClose}
+        TransitionComponent={Transition}
+      >
+        <AppBar
+          sx={{
+            position: "relative",
+            backgroundColor: "#272626",
+            padding: "6px",
+          }}
+        >
           <Toolbar>
-            <IconButton edge="start" color="inherit" onClick={handleClose} aria-label="close">
+            <IconButton
+              edge="start"
+              color="inherit"
+              onClick={handleClose}
+              aria-label="close"
+            >
               <KeyboardBackspaceIcon />
             </IconButton>
             <Typography sx={{ ml: 2, flex: 1 }} variant="h6" component="div">
               Create Complaint
             </Typography>
-            <Button autoFocus color="inherit" variant="outlined" onClick={handleSave}>
-              SAVE
+            <Button
+              autoFocus
+              color="inherit"
+              variant="outlined"
+              onClick={handleSave}
+              disabled={saving || uploading}
+            >
+              {saving ? "SAVING..." : "SAVE"}
             </Button>
           </Toolbar>
         </AppBar>
 
         <DialogContent>
           <Grid container spacing={2}>
-
             <Grid item xs={12} sm={6}>
               <TextField
-                label="Category" fullWidth select
+                label="Category"
+                fullWidth
+                select
                 value={complaintInput.complaint_category}
                 onChange={handleInputChange("complaint_category")}
               >
-                {CATEGORIES.map(cat => (
-                  <MenuItem key={cat} value={cat}>{cat}</MenuItem>
+                {CATEGORIES.map((cat) => (
+                  <MenuItem key={cat} value={cat}>
+                    {cat}
+                  </MenuItem>
                 ))}
               </TextField>
             </Grid>
 
             <Grid item xs={12} sm={6}>
               <TextField
-                label="Priority" fullWidth select
+                label="Priority"
+                fullWidth
+                select
                 value={complaintInput.priority}
                 onChange={handleInputChange("priority")}
               >
-                {PRIORITIES.map(p => (
-                  <MenuItem key={p.value} value={p.value}>{p.label}</MenuItem>
+                {PRIORITIES.map((p) => (
+                  <MenuItem key={p.value} value={p.value}>
+                    {p.label}
+                  </MenuItem>
                 ))}
               </TextField>
             </Grid>
 
             <Grid item xs={12} sm={6}>
               <TextField
-                label="Section" fullWidth
+                label="Section"
+                fullWidth
                 value={complaintInput.section}
                 onChange={handleInputChange("section")}
               />
@@ -225,7 +297,8 @@ const CreateComplaint = (props) => {
 
             <Grid item xs={12} sm={6}>
               <TextField
-                label="Department" fullWidth
+                label="Department"
+                fullWidth
                 value={complaintInput.department}
                 onChange={handleInputChange("department")}
               />
@@ -233,34 +306,48 @@ const CreateComplaint = (props) => {
 
             <Grid item xs={12}>
               <TextField
-                label="Complaint Details" fullWidth multiline rows={5}
+                label="Complaint Details"
+                fullWidth
+                multiline
+                rows={5}
                 value={complaintInput.complaint_details}
                 onChange={handleInputChange("complaint_details")}
               />
             </Grid>
 
             <Grid item xs={12}>
-              <Typography variant="subtitle2" sx={{ mb: 1, color: "text.secondary" }}>
+              <Typography
+                variant="subtitle2"
+                sx={{ mb: 1, color: "text.secondary" }}
+              >
                 Attach Photos (max {MAX_PHOTOS}, compressed automatically)
               </Typography>
 
               {photos.length < MAX_PHOTOS && (
                 <Button
-                  variant="outlined" component="label"
+                  variant="outlined"
+                  component="label"
                   startIcon={<PhotoCameraIcon />}
-                  disabled={uploading} sx={{ mb: 1 }}
+                  disabled={uploading || saving}
+                  sx={{ mb: 1 }}
                 >
                   {uploading ? "Compressing..." : "Add Photos"}
                   <input
-                    type="file" accept="image/jpeg,image/png,image/webp"
-                    multiple hidden onChange={handlePhotoChange}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    hidden
+                    onChange={handlePhotoChange}
                   />
                 </Button>
               )}
 
               {uploading && (
                 <Box sx={{ mt: 1, mb: 1 }}>
-                  <LinearProgress variant="determinate" value={uploadProgress} />
+                  <LinearProgress
+                    variant="determinate"
+                    value={uploadProgress}
+                  />
                   <Typography variant="caption" color="text.secondary">
                     Compressing images...
                   </Typography>
@@ -268,24 +355,40 @@ const CreateComplaint = (props) => {
               )}
 
               {photos.length > 0 && (
-                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1 }}>
+                <Box
+                  sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1 }}
+                >
                   {photos.map((photo, index) => (
                     <Box key={index} sx={{ position: "relative" }}>
-                      <Avatar src={photo.preview} variant="rounded" sx={{ width: 90, height: 90 }} />
+                      <Avatar
+                        src={photo.preview}
+                        variant="rounded"
+                        sx={{ width: 90, height: 90 }}
+                      />
                       <Chip
-                        label={`${photo.sizeKB}KB`} size="small"
+                        label={`${photo.sizeKB}KB`}
+                        size="small"
                         sx={{
-                          position: "absolute", bottom: 2, left: 2,
-                          fontSize: "10px", height: "18px",
-                          backgroundColor: "rgba(0,0,0,0.6)", color: "#fff"
+                          position: "absolute",
+                          bottom: 2,
+                          left: 2,
+                          fontSize: "10px",
+                          height: "18px",
+                          backgroundColor: "rgba(0,0,0,0.6)",
+                          color: "#fff",
                         }}
                       />
                       <IconButton
-                        size="small" onClick={() => handleRemovePhoto(index)}
+                        size="small"
+                        onClick={() => handleRemovePhoto(index)}
+                        disabled={saving}
                         sx={{
-                          position: "absolute", top: -8, right: -8,
-                          backgroundColor: "background.paper", padding: "2px",
-                          "&:hover": { backgroundColor: "error.light" }
+                          position: "absolute",
+                          top: -8,
+                          right: -8,
+                          backgroundColor: "background.paper",
+                          padding: "2px",
+                          "&:hover": { backgroundColor: "error.light" },
                         }}
                       >
                         <CancelIcon fontSize="small" color="error" />
@@ -295,7 +398,6 @@ const CreateComplaint = (props) => {
                 </Box>
               )}
             </Grid>
-
           </Grid>
         </DialogContent>
       </Dialog>

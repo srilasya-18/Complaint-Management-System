@@ -30,7 +30,6 @@ const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
 });
 
-// ── constants ────────────────────────────────────────────────────────────
 const CATEGORIES = ["Infrastructure", "Academic", "Hostel", "Canteen", "Transport", "Other"];
 const PRIORITIES = [
   { value: "low",    label: "Low" },
@@ -58,12 +57,9 @@ const CreateComplaint = (props) => {
     priority: "medium",
   });
 
-  // ── photo state ──────────────────────────────────────────────────────
-  // each entry: { file: File, preview: string (object URL), sizeKB: number }
   const [photos, setPhotos] = React.useState([]);
 
   const handleClose = () => {
-    // clean up object URLs to avoid memory leaks
     photos.forEach(p => URL.revokeObjectURL(p.preview));
     navigate(-1);
     setOpen(false);
@@ -73,11 +69,8 @@ const CreateComplaint = (props) => {
     setComplaintInput({ ...complaintInput, [fieldName]: event.target.value });
   };
 
-  // ── photo selection + browser-side compression ───────────────────────
   const handlePhotoChange = async (event) => {
     const selected = Array.from(event.target.files);
-
-    // enforce max 3 photos total
     const remaining = MAX_PHOTOS - photos.length;
     if (remaining <= 0) return;
     const toProcess = selected.slice(0, remaining);
@@ -89,14 +82,11 @@ const CreateComplaint = (props) => {
       const compressed = await Promise.all(
         toProcess.map(async (file, i) => {
           const compressedFile = await imageCompression(file, {
-            maxSizeMB: 1,           // compress to under 1MB before sending
+            maxSizeMB: 1,
             maxWidthOrHeight: 1200,
             useWebWorker: true,
           });
-
-          // progress simulation (browser-image-compression doesn't emit progress)
           setUploadProgress(Math.round(((i + 1) / toProcess.length) * 100));
-
           return {
             file: compressedFile,
             preview: URL.createObjectURL(compressedFile),
@@ -104,14 +94,12 @@ const CreateComplaint = (props) => {
           };
         })
       );
-
       setPhotos(prev => [...prev, ...compressed]);
     } catch (err) {
       showSnack("error", "Failed to process images. Please try again.");
     } finally {
       setUploading(false);
       setUploadProgress(0);
-      // reset input so same file can be re-selected if removed
       event.target.value = "";
     }
   };
@@ -123,42 +111,38 @@ const CreateComplaint = (props) => {
     });
   };
 
-  // ── snack helper ─────────────────────────────────────────────────────
   const showSnack = (sev, msg) => {
     setSnackSeverity("");
     setSnackMessage(msg);
     setSnackSeverity(sev);
   };
 
-  // ── submit ───────────────────────────────────────────────────────────
   const handleSave = async () => {
-    // basic validation
     if (!complaintInput.complaint_category) return showSnack("error", "Please select a category.");
     if (!complaintInput.complaint_details)  return showSnack("error", "Please enter complaint details.");
 
     try {
-      // step 1: if photos selected, upload them via REST first
-      // GraphQL handles text; file upload goes through the /upload endpoint
+      // step 1: upload photos if any
       let uploadedPhotos = [];
       if (photos.length > 0) {
         const formData = new FormData();
         photos.forEach(p => formData.append("photos", p.file));
 
         const uploadRes = await fetch(
-          `${process.env.REACT_APP_API_URL || "http://localhost:5000"}/upload/complaint`,
+          `${process.env.REACT_APP_API_URL || "http://localhost:5001"}/upload/complaint`,
           {
             method: "POST",
-            credentials: "include",    // sends cookie (secretToken)
+            credentials: "include",
             body: formData,
           }
         );
 
         if (!uploadRes.ok) throw new Error("Photo upload failed");
         const uploadData = await uploadRes.json();
-        uploadedPhotos = uploadData.photos;  // [{ url, filename, sizeKB }]
+        uploadedPhotos = uploadData.photos;
       }
 
-      // step 2: create complaint via GraphQL with photo URLs attached
+      // step 2: create complaint via GraphQL
       const res = await client.mutate({
         mutation: CREATE_COMPLAINT,
         variables: {
@@ -199,7 +183,7 @@ const CreateComplaint = (props) => {
               Create Complaint
             </Typography>
             <Button autoFocus color="inherit" variant="outlined" onClick={handleSave}>
-              save
+              SAVE
             </Button>
           </Toolbar>
         </AppBar>
@@ -207,12 +191,9 @@ const CreateComplaint = (props) => {
         <DialogContent>
           <Grid container spacing={2}>
 
-            {/* Category — now a dropdown */}
             <Grid item xs={12} sm={6}>
               <TextField
-                label="Category"
-                fullWidth
-                select
+                label="Category" fullWidth select
                 value={complaintInput.complaint_category}
                 onChange={handleInputChange("complaint_category")}
               >
@@ -222,12 +203,9 @@ const CreateComplaint = (props) => {
               </TextField>
             </Grid>
 
-            {/* Priority */}
             <Grid item xs={12} sm={6}>
               <TextField
-                label="Priority"
-                fullWidth
-                select
+                label="Priority" fullWidth select
                 value={complaintInput.priority}
                 onChange={handleInputChange("priority")}
               >
@@ -237,65 +215,49 @@ const CreateComplaint = (props) => {
               </TextField>
             </Grid>
 
-            {/* Section — unchanged */}
             <Grid item xs={12} sm={6}>
               <TextField
-                label="Section"
-                fullWidth
+                label="Section" fullWidth
                 value={complaintInput.section}
                 onChange={handleInputChange("section")}
               />
             </Grid>
 
-            {/* Department — unchanged */}
             <Grid item xs={12} sm={6}>
               <TextField
-                label="Department"
-                fullWidth
+                label="Department" fullWidth
                 value={complaintInput.department}
                 onChange={handleInputChange("department")}
               />
             </Grid>
 
-            {/* Complaint Details — unchanged */}
             <Grid item xs={12}>
               <TextField
-                label="Complaint Details"
-                fullWidth
-                multiline
-                rows={5}
+                label="Complaint Details" fullWidth multiline rows={5}
                 value={complaintInput.complaint_details}
                 onChange={handleInputChange("complaint_details")}
               />
             </Grid>
 
-            {/* Photo upload */}
             <Grid item xs={12}>
               <Typography variant="subtitle2" sx={{ mb: 1, color: "text.secondary" }}>
                 Attach Photos (max {MAX_PHOTOS}, compressed automatically)
               </Typography>
 
-              {/* upload button — hidden when 3 photos already selected */}
               {photos.length < MAX_PHOTOS && (
                 <Button
-                  variant="outlined"
-                  component="label"
+                  variant="outlined" component="label"
                   startIcon={<PhotoCameraIcon />}
-                  disabled={uploading}
-                  sx={{ mb: 1 }}
+                  disabled={uploading} sx={{ mb: 1 }}
                 >
                   {uploading ? "Compressing..." : "Add Photos"}
                   <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    multiple
-                    hidden
-                    onChange={handlePhotoChange}
+                    type="file" accept="image/jpeg,image/png,image/webp"
+                    multiple hidden onChange={handlePhotoChange}
                   />
                 </Button>
               )}
 
-              {/* compression progress bar */}
               {uploading && (
                 <Box sx={{ mt: 1, mb: 1 }}>
                   <LinearProgress variant="determinate" value={uploadProgress} />
@@ -305,40 +267,24 @@ const CreateComplaint = (props) => {
                 </Box>
               )}
 
-              {/* photo previews */}
               {photos.length > 0 && (
                 <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1 }}>
                   {photos.map((photo, index) => (
                     <Box key={index} sx={{ position: "relative" }}>
-                      <Avatar
-                        src={photo.preview}
-                        variant="rounded"
-                        sx={{ width: 90, height: 90 }}
-                      />
-                      {/* size badge */}
+                      <Avatar src={photo.preview} variant="rounded" sx={{ width: 90, height: 90 }} />
                       <Chip
-                        label={`${photo.sizeKB}KB`}
-                        size="small"
+                        label={`${photo.sizeKB}KB`} size="small"
                         sx={{
-                          position: "absolute",
-                          bottom: 2,
-                          left: 2,
-                          fontSize: "10px",
-                          height: "18px",
-                          backgroundColor: "rgba(0,0,0,0.6)",
-                          color: "#fff"
+                          position: "absolute", bottom: 2, left: 2,
+                          fontSize: "10px", height: "18px",
+                          backgroundColor: "rgba(0,0,0,0.6)", color: "#fff"
                         }}
                       />
-                      {/* remove button */}
                       <IconButton
-                        size="small"
-                        onClick={() => handleRemovePhoto(index)}
+                        size="small" onClick={() => handleRemovePhoto(index)}
                         sx={{
-                          position: "absolute",
-                          top: -8,
-                          right: -8,
-                          backgroundColor: "background.paper",
-                          padding: "2px",
+                          position: "absolute", top: -8, right: -8,
+                          backgroundColor: "background.paper", padding: "2px",
                           "&:hover": { backgroundColor: "error.light" }
                         }}
                       >

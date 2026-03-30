@@ -135,13 +135,21 @@ const complaint_schema = buildSchema(`
   }
 
   # ── Inputs ────────────────────────────────────────────────────────────
-  input ComplaintInput {
-    complaint_category: String!
-    section: String!
-    department: String!
-    complaint_details: String!
-    priority: String
-  }
+  input PhotoInput {
+  url: String!
+  filename: String
+  originalName: String
+  sizeKB: Int
+}
+
+input ComplaintInput {
+  complaint_category: String!
+  section: String!
+  department: String!
+  complaint_details: String!
+  priority: String
+  photos: [PhotoInput]
+}
 
   input CommentInput {
     comment_text: String!

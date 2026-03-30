@@ -93,3 +93,63 @@ export const UPVOTE_COMPLAINT = gql`
     }
   }
 `;
+
+// ── new: college admin dashboard ──────────────────────────────────────
+
+export const LIST_COLLEGE_COMPLAINTS = gql`
+  query LIST_COLLEGE_COMPLAINTS($status: String, $priority: String) {
+    listCollegeComplaints(status: $status, priority: $priority) {
+      _id
+      complaint_category
+      section
+      department
+      complaint_details
+      status
+      priority
+      upvotes
+      views
+      createdAt
+      photos {
+        url
+        sizeKB
+      }
+      complainee {
+        _id
+        name
+      }
+      assignedTo {
+        _id
+        name
+      }
+      statusHistory {
+        status
+        note
+        changedAt
+        changedBy {
+          name
+        }
+      }
+      college {
+        _id
+        name
+      }
+    }
+  }
+`;
+
+export const UPDATE_COMPLAINT_STATUS = gql`
+  mutation UPDATE_COMPLAINT_STATUS($statusInput: StatusUpdateInput!) {
+    updateComplaintStatus(statusInput: $statusInput) {
+      _id
+      status
+      statusHistory {
+        status
+        note
+        changedAt
+        changedBy {
+          name
+        }
+      }
+    }
+  }
+`;

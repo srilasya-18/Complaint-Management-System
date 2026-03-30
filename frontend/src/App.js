@@ -12,11 +12,16 @@ import ResolveComplaint from "./components/views/ResolveComplaint";
 import MyComplaints from "./components/views/MyComplaints";
 import FeedbackComplaints from "./components/views/FeedbackComplaints";
 
+// ── new imports for new roles ──────────────────────────────────────────
+import SuperAdminDashboard from "./components/views/SuperAdminDashboard"; // new
+import CollegeAdminDashboard from "./components/views/CollegeAdminDashboard"; // new
+
 /* Default State */
 const default_userstore = {
   userId: null,
   role: null,
   token: null,
+  college: null,   // ← added: which college this user belongs to
   search: "",
 };
 
@@ -38,6 +43,7 @@ const getTokenFromCookie = (cookieName) => {
       return {
         userId: parsed_token.userId,
         role: parsed_token.role,
+        college: parsed_token.college || null,  // ← pulled from JWT
         token: final_token,
         search: "",
       };
@@ -48,6 +54,14 @@ const getTokenFromCookie = (cookieName) => {
 /* Delete Cookie */
 const deleteCookie = (name) => {
   document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`;
+};
+
+// ── helper: where to send user after login based on role ──────────────
+const getHomeRoute = (role) => {
+  if (role === "student")       return "/complaints/me";
+  if (role === "college_admin") return "/admin/dashboard";
+  if (role === "super_admin")   return "/superadmin/dashboard";
+  return "/home";
 };
 
 const App = () => {
@@ -69,9 +83,7 @@ const App = () => {
   /* Logout */
   const logOutHandler = () => {
     deleteCookie("secretToken");
-
     setUserstore(default_userstore);
-
     setTimeout(() => {
       navigate("/login");
     }, 1000);
@@ -85,35 +97,33 @@ const App = () => {
     }));
   };
 
+  const { token, userId, role, college } = userStore;
+  const homeRoute = getHomeRoute(role);
+
   return (
     <React.Fragment>
       <AuthContext.Provider
         value={{
-          token: userStore.token,
-          userId: userStore.userId,
-          role: userStore.role,
+          token,
+          userId,
+          role,
+          college,           // ← now available anywhere via useContext(AuthContext)
           search: userStore.search,
           login: logInHandler,
           logout: logOutHandler,
-          setSearch: setSearch,
+          setSearch,
         }}
       >
         <Header />
 
         <Routes>
-          {/* Root */}
+          {/* Root — redirect based on role */}
           <Route
             path="/"
             element={
-              userStore.token && userStore.userId ? (
-                userStore.role === "student" ? (
-                  <Navigate to="/complaints/me" />
-                ) : (
-                  <Navigate to="/view" />
-                )
-              ) : (
-                <Navigate to="/home" />
-              )
+              token && userId
+                ? <Navigate to={homeRoute} />
+                : <Navigate to="/home" />
             }
           />
 
@@ -121,13 +131,9 @@ const App = () => {
           <Route
             path="/login"
             element={
-              !userStore.token ? (
-                <LogInAuthPage />
-              ) : userStore.role === "student" ? (
-                <Navigate to="/complaints/me" />
-              ) : (
-                <Navigate to="/view" />
-              )
+              !token
+                ? <LogInAuthPage />
+                : <Navigate to={homeRoute} />
             }
           />
 
@@ -135,81 +141,84 @@ const App = () => {
           <Route
             path="/signup"
             element={
-              !userStore.token ? (
-                <SignUpAuthPage />
-              ) : userStore.role === "student" ? (
-                <Navigate to="/complaints/me" />
-              ) : (
-                <Navigate to="/view" />
-              )
+              !token
+                ? <SignUpAuthPage />
+                : <Navigate to={homeRoute} />
             }
           />
 
-          {/* Student */}
+          {/* ── Student routes ──────────────────────────────────────── */}
           <Route
             path="/complaints"
             element={
-              userStore.role === "student" ? (
-                <AllComplaints />
-              ) : (
-                <Navigate to="/login" />
-              )
+              role === "student"
+                ? <AllComplaints />
+                : <Navigate to="/login" />
             }
           />
 
           <Route
             path="/complaints/me"
             element={
-              userStore.role === "student" ? (
-                <MyComplaints />
-              ) : (
-                <Navigate to="/login" />
-              )
+              role === "student"
+                ? <MyComplaints />
+                : <Navigate to="/login" />
             }
           />
 
           <Route
             path="/create"
             element={
-              userStore.role === "student" ? (
-                <CreateComplaint openDialog={true} />
-              ) : (
-                <Navigate to="/login" />
-              )
+              role === "student"
+                ? <CreateComplaint openDialog={true} />
+                : <Navigate to="/login" />
             }
           />
 
           <Route
             path="/givefeedback"
             element={
-              userStore.role === "student" ? (
-                <FeedbackComplaints openDialog={true} />
-              ) : (
-                <Navigate to="/login" />
-              )
+              role === "student"
+                ? <FeedbackComplaints openDialog={true} />
+                : <Navigate to="/login" />
             }
           />
 
-          {/* Dean */}
+          {/* ── College Admin routes (replaces dean) ───────────────── */}
           <Route
             path="/view"
             element={
-              userStore.role === "dean" ? (
-                <ViewFeedback />
-              ) : (
-                <Navigate to="/login" />
-              )
+              role === "college_admin"
+                ? <ViewFeedback />
+                : <Navigate to="/login" />
             }
           />
 
           <Route
             path="/resolve"
             element={
-              userStore.role === "dean" ? (
-                <ResolveComplaint />
-              ) : (
-                <Navigate to="/login" />
-              )
+              role === "college_admin"
+                ? <ResolveComplaint />
+                : <Navigate to="/login" />
+            }
+          />
+
+          <Route
+            path="/admin/dashboard"
+            element={
+              role === "college_admin"
+                ? <CollegeAdminDashboard />
+                : <Navigate to="/login" />
+            }
+          />
+
+          {/* ── Super Admin routes ──────────────────────────────────── */}
+          <Route
+            path="/superadmin/dashboard"
+            element={
+              role === "super_admin"
+                ? <SuperAdminDashboard />
+                : <Navigate to="/login" />
             }
           />
 

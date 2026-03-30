@@ -10,6 +10,7 @@
     "@material-ui/lab": "^4.0.0-alpha.61",
     "@mui/icons-material": "^5.14.19",
     "@mui/material": "^5.14.19",
+    "browser-image-compression": "^2.0.2",
     "graphql": "^16.8.1",
     "jsonwebtoken": "^9.0.2",
     "jwt-decode": "^4.0.0",

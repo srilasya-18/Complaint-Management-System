@@ -1,136 +1,240 @@
 import { buildSchema } from 'graphql';
 
-const complaint_schema =  buildSchema(`
-type Complaint {
-  _id: ID!
-  complaint_category: String!
-  section: String!
-  department: String!
-  complaint_details: String!
-  createdAt: String!
-  status: String!
-  upvotes: Int!
-  views: Int!
-  resolvement: String
-  resolvedBy: User
-  resolvedAt: String
-  updatedAt: String
-  complainee: User!
-}
+const complaint_schema = buildSchema(`
 
-type ResolvedComplaint {
-  _id: ID!
-  complaint_category: String!
-  section: String!
-  department: String!
-  complaint_details: String!
-  createdAt: String!
-  status: String!
-  upvotes: Int!
-  views: Int!
-  resolvement: String
-  resolvedBy: User!
-  resolvedAt: String!
-  updatedAt: String
-  complainee: User!
-}
+  # ── College ───────────────────────────────────────────────────────────
+  type College {
+    _id: ID!
+    name: String!
+    emailDomain: String!
+    code: String!
+    location: String
+    isActive: Boolean!
+    createdAt: String!
+  }
 
-type Comment{
-  _id: ID!
-  comment_text: String!
-  createdAt: String!
-  updatedAt: String
-  complaint: Complaint!
-  commenter: User!
-}
+  # ── Status history entry (audit trail) ────────────────────────────────
+  type StatusHistory {
+    status: String!
+    changedBy: User
+    note: String
+    changedAt: String!
+  }
 
+  # ── Photo attachment ───────────────────────────────────────────────────
+  type Photo {
+    url: String!
+    filename: String
+    originalName: String
+    sizeKB: Int
+    uploadedAt: String
+  }
 
-type User {
-  _id: ID!
-  name: String!
-  identification_num: String!
-  email: String!
-}
+  # ── User ───────────────────────────────────────────────────────────────
+  type User {
+    _id: ID!
+    name: String!
+    identification_num: String!
+    email: String!
+    role: String!
+    college: College
+    isActive: Boolean!
+    isVerified: Boolean!
+    createdAt: String
+  }
 
-type AuthData {
-  token: String!
-  userId: String!
-  role: String!
-}
+  # ── Auth ───────────────────────────────────────────────────────────────
+  type AuthData {
+    token: String!
+    userId: String!
+    role: String!
+    college: String        
+  }
 
-type Feedback {
-  _id: ID!
-  feedback_text: String!
-  createdAt: String!
-  updatedAt: String
-  feedbacker: User!
-  feedback_complaint: Complaint!
-}
+  # ── Complaint (active) ────────────────────────────────────────────────
+  type Complaint {
+    _id: ID!
+    complaint_category: String!
+    section: String!
+    department: String!
+    complaint_details: String!
+    createdAt: String!
+    status: String!
+    priority: String!
+    upvotes: Int!
+    views: Int!
+    resolvement: String
+    resolvedBy: User
+    resolvedAt: String
+    updatedAt: String
+    complainee: User!
+    college: College!
+    assignedTo: User
+    statusHistory: [StatusHistory!]!
+    photos: [Photo!]!
+  }
 
-type DetailComplaint{
-  complaint: Complaint!
-  upvoted: Boolean!
-  viewer: User!
-}
+  # ── Resolved complaint ────────────────────────────────────────────────
+  type ResolvedComplaint {
+    _id: ID!
+    complaint_category: String!
+    section: String!
+    department: String!
+    complaint_details: String!
+    createdAt: String!
+    status: String!
+    priority: String!
+    upvotes: Int!
+    views: Int!
+    resolvement: String
+    resolvedBy: User!
+    resolvedAt: String!
+    updatedAt: String
+    complainee: User!
+    college: College!
+    assignedTo: User
+    statusHistory: [StatusHistory!]!
+    photos: [Photo!]!
+  }
 
-input ComplaintInput {
-  complaint_category: String!
-  section: String!
-  department: String!
-  complaint_details: String!
-}
+  # ── Detail view (complaint + upvote state) ────────────────────────────
+  type DetailComplaint {
+    complaint: Complaint!
+    upvoted: Boolean!
+    viewer: User!
+  }
 
-input CommentInput {
-  comment_text: String!
-  complaint_id: ID!
-}
+  # ── Comment ───────────────────────────────────────────────────────────
+  type Comment {
+    _id: ID!
+    comment_text: String!
+    createdAt: String!
+    updatedAt: String
+    complaint: Complaint!
+    commenter: User!
+  }
 
-input FeedbackupInput {
-  feedback_text: String!
-  complaint_id: ID!
-}
+  # ── Feedback ──────────────────────────────────────────────────────────
+  type Feedback {
+    _id: ID!
+    feedback_text: String!
+    createdAt: String!
+    updatedAt: String
+    feedbacker: User!
+    feedback_complaint: Complaint!
+  }
 
-input ResolveInput {
-  resolveText: String
-  complaintId: ID!
-}
+  # ── Super admin dashboard stats ───────────────────────────────────────
+  type CollegeStats {
+    college: College!
+    totalComplaints: Int!
+    pendingCount: Int!
+    inProgressCount: Int!
+    resolvedCount: Int!
+    rejectedCount: Int!
+  }
 
-input UserInput {
-  name : String!
-  identification_num: String!
-  email: String!
-  password: String!
-  role: String
-}
+  # ── Inputs ────────────────────────────────────────────────────────────
+  input ComplaintInput {
+    complaint_category: String!
+    section: String!
+    department: String!
+    complaint_details: String!
+    priority: String
+  }
 
-input LogInput{
-  identification_num: String!
-  password: String!
-  role: String
-}
+  input CommentInput {
+    comment_text: String!
+    complaint_id: ID!
+  }
 
-type RootQuery {
+  input FeedbackupInput {
+    feedback_text: String!
+    complaint_id: ID!
+  }
+
+  input ResolveInput {
+    resolveText: String
+    complaintId: ID!
+  }
+
+  input UserInput {
+    name: String!
+    identification_num: String!
+    email: String!
+    password: String!
+    role: String
+  }
+
+  input LogInput {
+    identification_num: String!
+    password: String!
+    role: String
+  }
+
+  input CollegeInput {
+    name: String!
+    emailDomain: String!
+    code: String!
+    location: String
+  }
+
+  input StatusUpdateInput {
+    complaintId: ID!
+    status: String!
+    note: String
+  }
+
+  input AssignInput {
+    complaintId: ID!
+    adminId: ID!
+  }
+
+  # ── Queries ───────────────────────────────────────────────────────────
+  type RootQuery {
+    # existing — unchanged
     listComplaints(status: String, userId: ID): [Complaint!]!
     listComments(complaintId: ID!): [Comment!]!
     login(logInput: LogInput): AuthData!
     getFeedback(complaintId: ID!): Feedback!
     viewComplaint(complaintId: ID!, userId: ID!): DetailComplaint
     viewResolvedComplaint(complaintId: ID!, userId: ID!): ResolvedComplaint
-}
 
-type RootMutation {
+    # new — college admin
+    listCollegeComplaints(status: String, priority: String): [Complaint!]!
+
+    # new — super admin
+    listColleges: [College!]!
+    getCollegeStats: [CollegeStats!]!
+    listAllComplaints(status: String, collegeId: ID): [Complaint!]!
+    listCollegeAdmins(collegeId: ID): [User!]!
+  }
+
+  # ── Mutations ─────────────────────────────────────────────────────────
+  type RootMutation {
+    # existing — unchanged
     createComplaint(complaintInput: ComplaintInput): Complaint
     createUser(userInput: UserInput): User
     createComment(commentInput: CommentInput): Comment
     upVoteComplaint(complaintId: ID!): Complaint
     resolveComplaint(resolveInput: ResolveInput): ResolvedComplaint
     createFeedback(feedbackInput: FeedbackupInput!): Feedback
-}
 
-schema {
+    # new — college admin
+    updateComplaintStatus(statusInput: StatusUpdateInput!): Complaint
+    assignComplaint(assignInput: AssignInput!): Complaint
+
+    # new — super admin
+    createCollege(collegeInput: CollegeInput!): College
+    toggleCollegeStatus(collegeId: ID!): College
+    createCollegeAdmin(userInput: UserInput!, collegeId: ID!): User
+    toggleUserStatus(userId: ID!): User
+  }
+
+  schema {
     query: RootQuery
     mutation: RootMutation
-}
+  }
 `);
 
 export default complaint_schema;

@@ -11,6 +11,7 @@ import graphQlResolvers from './graphql/resolvers/index.js';
 import getErrorCode from './helpers/errorCode.js';
 import cookieParser from 'cookie-parser';
 import { errorTypes } from './helpers/errorConstants.js';
+import { upload, compressAndSave } from './middleware/upload.js';  // ← new
 
 // Load .env
 dotenv.config();
@@ -31,14 +32,29 @@ const corsOptions = {
   origin: process.env.UI_URL || 'http://localhost:3000'
 };
 
-// Middlewares
+// ── Middlewares ───────────────────────────────────────────────────────
 app.use(cors(corsOptions));
 app.use(cookieParser());
 app.use(bodyParser.json());
 app.use('/', express.static(join(process.cwd(), 'public')));
+app.use('/uploads', express.static(join(process.cwd(), 'uploads')));  // ← serves photos
 app.use(isAuth);
 
-// GraphQL Route
+// ── File Upload Route (before GraphQL) ───────────────────────────────
+app.post(
+  '/upload/complaint',
+  isAuth,
+  upload.array('photos', 3),
+  compressAndSave,
+  (req, res) => {
+    if (!req.isAuth) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    res.json({ photos: req.uploadedPhotos });
+  }
+);
+
+// ── GraphQL Route ─────────────────────────────────────────────────────
 app.use(
   '/graphql',
   async (req, res, next) => {
@@ -66,7 +82,7 @@ app.use(
   }
 );
 
-// MongoDB URL
+// ── MongoDB URL ───────────────────────────────────────────────────────
 const MONGO_URI =
   "mongodb://" +
   `${process.env.MONGO_USER}:${process.env.MONGO_PASSWORD}@` +
@@ -76,31 +92,25 @@ const MONGO_URI =
   `${process.env.MONGO_DB}` +
   "?ssl=true&authSource=admin&retryWrites=true&w=majority";
 
-
-// Start Server
+// ── Start Server ──────────────────────────────────────────────────────
 async function Start_Server() {
   try {
-    // Debug: Print URL (hide password later)
     console.log("Mongo URL:", MONGO_URI);
 
-    // Connect to MongoDB
     await mongoose.connect(MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 10000,
-});
-
-
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 10000,
+    });
 
     console.log("✅ MongoDB Connected");
 
-    // Start server
     app.listen(PORT, () => {
-      console.log(`Server running on port: ${PORT}`);
+      console.log(`🚀 Server running on port: ${PORT}`);
     });
 
   } catch (err) {
-    console.error("MongoDB Connection Error:", err);
+    console.error("❌ MongoDB Connection Error:", err);
   }
 }
 

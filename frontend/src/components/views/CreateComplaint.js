@@ -46,7 +46,7 @@ const PRIORITIES = [
 const MAX_PHOTOS = 3;
 
 // ── FIX 1: Use port 5000, not 5001 ───────────────────────────────────
-const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5001";
 
 const CreateComplaint = (props) => {
   const [open, setOpen] = React.useState(props.openDialog);
@@ -162,6 +162,7 @@ const CreateComplaint = (props) => {
         }
 
         const uploadData = await uploadRes.json();
+        console.log("UPLOAD RESPONSE:", uploadData);
 
         // ── FIX 3: Guard against missing photos in response ─────────
         if (!uploadData.photos || uploadData.photos.length === 0) {

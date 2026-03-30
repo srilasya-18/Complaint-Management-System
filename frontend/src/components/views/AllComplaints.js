@@ -16,7 +16,8 @@ import { CREATE_COMMENT, LIST_COMMENTS } from "../../gql/queries/COMMENT";
 import { useApolloClient } from "@apollo/client";
 import BottomSnackBar from "../../snackbar/BottomSnackBar";
 
-const default_variable = { status: "Active" };
+const default_variable = { };
+
 
 const AllComplaints = () => {
   const [dialogOpen, setDialogOpen] = useState(false);

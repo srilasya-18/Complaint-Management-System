@@ -7,12 +7,13 @@ import {
   Avatar,
 } from "@mui/material";
 
-
+const BASE_URL = "http://localhost:5001";
 
 export const ComplaintCard = ({ complaint, viewHandler }) => {
 
 
-  
+  console.log("PHOTO DATA:", complaint.photos);
+console.log("FULL URL:", BASE_URL + complaint?.photos?.[0]?.url);
   return (
     <Card>
       <CardContent>
@@ -45,6 +46,20 @@ export const ComplaintCard = ({ complaint, viewHandler }) => {
             </Typography>
           </Grid>
         </Grid>
+        {complaint.photos && complaint.photos.length > 0 && (
+          <Grid container style={{ marginTop: "15px" }}>
+            <img
+              src={BASE_URL + complaint.photos[0].url}
+              alt="complaint"
+              style={{
+                width: "100%",
+                maxHeight: "200px",
+                objectFit: "cover",
+                borderRadius: "8px",
+              }}
+            />
+          </Grid>
+        )}
         <Button
           variant="outlined"
           color="primary"

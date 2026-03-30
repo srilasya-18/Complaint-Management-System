@@ -44,9 +44,32 @@ const MyComplaints = () => {
     setDialogOpen(false);
   };
 
+  // useEffect(() => {
+  //   setBackDrop(false);
+  // }, [complaintsData]);
   useEffect(() => {
-    setBackDrop(false);
-  }, [complaintsData]);
+    const fetchMyComplaints = async () => {
+      setLoading(true);
+      try {
+        let userId = authContext.userId;
+
+        let res = await client.query({
+          query: LIST_COMPLAINTS_FEW,
+          variables: {
+            userId,
+          },
+          fetchPolicy: "network-only",
+        });
+
+        setComplaintsData(res?.data?.listComplaints);
+      } catch (error) {
+        console.log(error);
+      }
+      setLoading(false);
+    };
+
+    fetchMyComplaints();
+  }, []);
 
   useEffect(() => {
     setBackDrop(loading);

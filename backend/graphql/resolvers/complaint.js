@@ -1,5 +1,5 @@
 // backend/graphql/resolvers/complaint.js
-import Complaint from '../../models/complaint.js';
+import Complaint from '../../models/complaint.js';;
 import ComplaintUpvoter from '../../models/complaint_upvoters.js';
 import {
   transformComplaint,
@@ -21,6 +21,7 @@ export default {
       department: args.complaintInput.department,
       complaint_details: args.complaintInput.complaint_details,
       priority: args.complaintInput.priority || 'medium',
+      photos: args.complaintInput.photos || [],
       createdAt: new Date(),
       complainee: req.userId,
       college: req.userCollege,    // auto-set from JWT, student can't fake it

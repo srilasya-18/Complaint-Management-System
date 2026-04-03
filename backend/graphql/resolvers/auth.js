@@ -8,7 +8,6 @@ import { errorNames } from '../../helpers/errorConstants.js';
 export default {
   createUser: async args => {
     try {
-      // ── check duplicate ────────────────────────────────────────────
       const existingUser = await User.findOne({
         $or: [
           { email: args.userInput.email },
@@ -19,7 +18,6 @@ export default {
         throw new Error(errorNames.USER_ALREADY_EXISTS);
       }
 
-      // ── auto-detect college from email domain ──────────────────────
       const emailDomain = args.userInput.email.split('@')[1];
       const college = await College.findOne({ emailDomain, isActive: true });
       if (!college) {
@@ -28,15 +26,13 @@ export default {
 
       const hashedPassword = await bcrypt.hash(args.userInput.password, 12);
 
-      // ── determine role (students only via self-signup) ────────────
-      // college_admin and super_admin are created by super admin only
       const user = new User({
         name: args.userInput.name,
         identification_num: args.userInput.identification_num,
         email: args.userInput.email,
         password: hashedPassword,
-        role: 'student',          // self-signup always creates student
-        college: college._id,     // auto-assigned from email domain
+        role: 'student',
+        college: college._id,
         createdAt: new Date()
       });
 
@@ -54,10 +50,9 @@ export default {
 
   login: async (args, req) => {
     try {
-      // ── find user by identification_num only (role auto-detected) ──
       const user = await User.findOne({
         identification_num: args.logInput.identification_num,
-        isActive: true    // suspended users cannot login
+        isActive: true
       }).populate('college');
 
       if (!user) {
@@ -69,7 +64,6 @@ export default {
         throw new Error(errorNames.INNCORRECT_PASSWORD);
       }
 
-      // ── sign token with college included ───────────────────────────
       const token = jwt.sign(
         {
           userId: user.id,
@@ -83,8 +77,10 @@ export default {
       );
 
       req.res.cookie('secretToken', token, {
-        maxAge: process.env.COOKIE_MAX_AGE,
-        httpOnly: false
+      maxAge: parseInt(process.env.COOKIE_MAX_AGE),
+      httpOnly: false,
+      sameSite: 'lax',
+      path: '/'
       });
 
       return {
@@ -98,7 +94,6 @@ export default {
     }
   },
 
-  // ── super admin: create a college ─────────────────────────────────
   createCollege: async (args, req) => {
     if (!req.isAuth || req.userRole !== 'super_admin') {
       throw new Error(errorNames.UNAUTHORIZED_CLIENT);
@@ -122,7 +117,6 @@ export default {
     }
   },
 
-  // ── super admin: create a college admin ───────────────────────────
   createCollegeAdmin: async (args, req) => {
     if (!req.isAuth || req.userRole !== 'super_admin') {
       throw new Error(errorNames.UNAUTHORIZED_CLIENT);
@@ -161,7 +155,6 @@ export default {
     }
   },
 
-  // ── super admin: toggle college active/inactive ───────────────────
   toggleCollegeStatus: async ({ collegeId }, req) => {
     if (!req.isAuth || req.userRole !== 'super_admin') {
       throw new Error(errorNames.UNAUTHORIZED_CLIENT);
@@ -176,7 +169,6 @@ export default {
     }
   },
 
-  // ── super admin: suspend/unsuspend a user ─────────────────────────
   toggleUserStatus: async ({ userId }, req) => {
     if (!req.isAuth || req.userRole !== 'super_admin') {
       throw new Error(errorNames.UNAUTHORIZED_CLIENT);
@@ -192,7 +184,6 @@ export default {
     }
   },
 
-  // ── super admin: list all colleges ───────────────────────────────
   listColleges: async (args, req) => {
     if (!req.isAuth || req.userRole !== 'super_admin') {
       throw new Error(errorNames.UNAUTHORIZED_CLIENT);
@@ -200,7 +191,6 @@ export default {
     return await College.find({});
   },
 
-  // ── super admin: list admins per college ─────────────────────────
   listCollegeAdmins: async ({ collegeId }, req) => {
     if (!req.isAuth || req.userRole !== 'super_admin') {
       throw new Error(errorNames.UNAUTHORIZED_CLIENT);
@@ -208,5 +198,34 @@ export default {
     const filter = { role: 'college_admin' };
     if (collegeId) filter.college = collegeId;
     return await User.find(filter).populate('college');
+  },
+
+  // ── create super admin via secret code ────────────────────────────
+  createSuperAdmin: async (args) => {
+    if (args.secretCode !== process.env.SUPER_ADMIN_CODE) {
+      throw new Error(errorNames.UNAUTHORIZED_CLIENT);
+    }
+    const existing = await User.findOne({
+      $or: [
+        { email: args.userInput.email },
+        { identification_num: args.userInput.identification_num }
+      ]
+    });
+    if (existing) throw new Error(errorNames.USER_ALREADY_EXISTS);
+
+    const hashedPassword = await bcrypt.hash(args.userInput.password, 12);
+    const admin = new User({
+      name: args.userInput.name,
+      identification_num: args.userInput.identification_num,
+      email: args.userInput.email,
+      password: hashedPassword,
+      role: 'super_admin',
+      college: null,
+      isActive: true,
+      isVerified: true,
+      createdAt: new Date()
+    });
+    const result = await admin.save();
+    return { _id: result.id, name: result._doc.name };
   }
 };

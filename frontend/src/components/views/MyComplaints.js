@@ -1,14 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
-  Grid,
-  Container,
-  Box,
-  Button,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Typography
+  Grid, Container, Box, Button, Select, MenuItem,
+  FormControl, InputLabel, Typography, Chip
 } from "@mui/material";
 import { ComplaintCard } from "./ComplaintCard";
 import MyComplaintDialog from "./MyComplaintDialog";
@@ -20,266 +13,186 @@ import CircularProgress from "@mui/material/CircularProgress";
 import { AuthContext } from "../../App";
 import { VIEW_COMPLAINT } from "../../gql/queries/COMPLAINT";
 import { useApolloClient } from "@apollo/client";
-import {  LIST_COMMENTS } from "../../gql/queries/COMMENT";
+import { LIST_COMMENTS } from "../../gql/queries/COMMENT";
+
+const STATUS_COLORS = {
+  pending:     "warning",
+  in_progress: "info",
+  resolved:    "success",
+  rejected:    "error",
+};
 
 const MyComplaints = () => {
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen]         = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [complaintsData, setComplaintsData] = useState([]);
-  const [severity, setSnackSeverity] = useState("");
-  const [snackMessage, setSnackMessage] = useState("");
-  const [backDrop, setBackDrop] = useState(false);
-  const authContext = React.useContext(AuthContext);
-  const client = useApolloClient();
-  const [loading, setLoading] = useState(false)
+  const [severity, setSnackSeverity]        = useState("");
+  const [snackMessage, setSnackMessage]     = useState("");
+  const [backDrop, setBackDrop]             = useState(false);
+  const [loading, setLoading]               = useState(false);
   const [commentdialogOpen, setCommentDialog] = useState(false);
-  const [commentsData,setCommentData] = useState([])
+  const [commentsData, setCommentData]      = useState([]);
+  const [complaintStatus, setComplaintStatus] = useState("");
 
-  const handleViewDetails = (complaint) => {
-    setSelectedComplaint(complaint);
-    setDialogOpen(true);
+  const authContext = React.useContext(AuthContext);
+  const client      = useApolloClient();
+
+  const showSnack = (sev, msg) => {
+    setSnackSeverity(""); setSnackMessage(msg); setSnackSeverity(sev);
   };
 
-  const handleDialogClose = () => {
-    setDialogOpen(false);
+  const handleAuthError = (error) => {
+    if (error.message === "Unauthorized client in the scope") {
+      showSnack("error", "Session Timed Out. Please LogIn again!");
+      authContext.logout();
+    } else {
+      showSnack("error", `Error: ${error?.message}`);
+    }
   };
 
-  // useEffect(() => {
-  //   setBackDrop(false);
-  // }, [complaintsData]);
+  // ── fetch on mount ────────────────────────────────────────────────
   useEffect(() => {
-    const fetchMyComplaints = async () => {
-      setLoading(true);
-      try {
-        let userId = authContext.userId;
-
-        let res = await client.query({
-          query: LIST_COMPLAINTS_FEW,
-          variables: {
-            userId,
-          },
-          fetchPolicy: "network-only",
-        });
-
-        setComplaintsData(res?.data?.listComplaints);
-      } catch (error) {
-        console.log(error);
-      }
-      setLoading(false);
-    };
-
-    fetchMyComplaints();
+    fetchComplaints(null);
   }, []);
 
   useEffect(() => {
     setBackDrop(loading);
   }, [loading]);
 
-  const viewHandler = async (id) => {
-    setLoading(true)
+  const fetchComplaints = async (status) => {
+    setLoading(true);
     try {
-      let complaintId = id;
-      let userId = authContext.userId;
-      let res = await client.query({
-        query: VIEW_COMPLAINT,
-        variables: {
-          complaintId,
-          userId,
-        },
-        fetchPolicy: 'network-only',
-      });
-      setLoading(false)
-      let detailedComplaint = { data: res?.data?.viewComplaint };
-      handleViewDetails(detailedComplaint);
-    } catch (error) {
-      setLoading(false)
-      if (error.message === "Unauthorized client in the scope") {
-        setSnackSeverity("");
-        setSnackMessage("Session Timed Out. Please LogIn again!");
-        setSnackSeverity("error");
-        // setTimeout(() => {
-        //   navigate("/login");
-        // }, 3000);
-        authContext.logout()
-      } else {
-        setSnackSeverity("");
-        setSnackMessage(
-          `Couldn't View the complaint with error ${error?.message} `
-        );
-        setSnackSeverity("error");
-      }
-    }
-  };
-
-  const [complaintStatus, setComplaintStatus] = React.useState("");
-
-  const handleComplaintStatusChange = (event) => {
-    setComplaintStatus(event.target.value);
-  };
-
-  const handleFetchButtonClick = async () => {
-    setLoading(true)
-    try {
-      let status = complaintStatus;
-      let userId = authContext.userId;
-      let res = await client.query({
+      const res = await client.query({
         query: LIST_COMPLAINTS_FEW,
         variables: {
-          status,
-          userId,
+          userId: authContext.userId,
+          status: status || null,
         },
+        fetchPolicy: "network-only",
       });
-      setLoading(false)
-      let fetched_complaints = { data: res?.data?.listComplaints };
-      setComplaintsData(fetched_complaints?.data);
+      setComplaintsData(res?.data?.listComplaints || []);
     } catch (error) {
-      setLoading(false)
-      if (error.message === "Unauthorized client in the scope") {
-        setSnackSeverity("");
-        setSnackMessage("Session Timed Out. Please LogIn again!");
-        setSnackSeverity("error");
-        // setTimeout(() => {
-        //   navigate("/login");
-        // }, 3000);
-        authContext.logout()
-      } else {
-        setSnackSeverity("");
-        setSnackMessage(
-          `Couldn't View the complaint with error ${error?.message} `
-        );
-        setSnackSeverity("error");
-      }
+      handleAuthError(error);
+    }
+    setLoading(false);
+  };
+
+  const handleFetchButtonClick = () => fetchComplaints(complaintStatus);
+
+  // ── view complaint ────────────────────────────────────────────────
+  const viewHandler = async (id) => {
+    setLoading(true);
+    try {
+      const res = await client.query({
+        query: VIEW_COMPLAINT,
+        variables: { complaintId: id, userId: authContext.userId },
+        fetchPolicy: "network-only",
+      });
+      setLoading(false);
+      setSelectedComplaint({ data: res?.data?.viewComplaint });
+      setDialogOpen(true);
+    } catch (error) {
+      setLoading(false);
+      handleAuthError(error);
     }
   };
 
-  const commentsCloseHandler = () => {
-    setCommentDialog(false);
-    setCommentData([])
-  }
-
+  // ── comments ──────────────────────────────────────────────────────
   const listCommentsHanlderFunction = async (id) => {
     setLoading(true);
     try {
-      let complaintId = id;
-      let res = await client.query({
+      const res = await client.query({
         query: LIST_COMMENTS,
-        variables: {
-          complaintId,
-
-        },
+        variables: { complaintId: id },
         fetchPolicy: "network-only",
       });
       setLoading(false);
       setCommentDialog(true);
-      setCommentData(res?.data?.listComments)
+      setCommentData(res?.data?.listComments);
     } catch (error) {
       setLoading(false);
-      if (error.message === "Unauthorized client in the scope") {
-        setSnackSeverity("");
-        setSnackMessage("Session Timed Out. Please LogIn again!");
-        setSnackSeverity("error");
-        // setTimeout(() => {
-        //   navigate("/login");
-        // }, 3000);
-        authContext.logout()
-      } else {
-        setSnackSeverity("");
-        setSnackMessage(
-          `Couldn't list comments with error ${error?.message} `
-        );
-        setSnackSeverity("error");
-      }
+      handleAuthError(error);
     }
   };
 
   return (
     <React.Fragment>
-      <Backdrop
-        sx={{ color: "#fff", zIndex: (theme) => theme.zIndex.drawer + 1 }}
-        open={backDrop}
-      >
+      <Backdrop sx={{ color: "#fff", zIndex: (theme) => theme.zIndex.drawer + 1 }} open={backDrop}>
         <CircularProgress color="inherit" />
       </Backdrop>
-      {severity !== "" && (
-        <SnackBar message={snackMessage} severity={severity} />
-      )}
-      <Container
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "20vh",
-        }}
-      >
-        <Box
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            width: "100%",
-          }}
-        >
-          <FormControl style={{ marginRight: "10px", width: "25%" }}>
-            <InputLabel id="complaintStatus-label">Complaint Status</InputLabel>
+
+      {severity !== "" && <SnackBar message={snackMessage} severity={severity} />}
+
+      {/* ── filter bar ──────────────────────────────────────────────── */}
+      <Container style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "20vh" }}>
+        <Box style={{ display: "flex", justifyContent: "center", alignItems: "center", width: "100%", gap: "10px" }}>
+          <FormControl style={{ width: "25%" }}>
+            <InputLabel id="complaintStatus-label">Filter by Status</InputLabel>
             <Select
               labelId="complaintStatus-label"
-              id="complaintStatus"
               value={complaintStatus}
-              label="Complaint Status"
-              onChange={handleComplaintStatusChange}
+              label="Filter by Status"
+              onChange={(e) => setComplaintStatus(e.target.value)}
             >
-              <MenuItem value="Active">Active</MenuItem>
-              <MenuItem value="Resolved">Resolved</MenuItem>
+              <MenuItem value="">All</MenuItem>
+              <MenuItem value="pending">Pending</MenuItem>
+              <MenuItem value="in_progress">In Progress</MenuItem>
+              <MenuItem value="resolved">Resolved</MenuItem>
+              <MenuItem value="rejected">Rejected</MenuItem>
             </Select>
           </FormControl>
 
-          <Button
-            variant="contained"
-            onClick={handleFetchButtonClick}
-            style={{ width: "10%" }}
-          >
+          <Button variant="contained" onClick={handleFetchButtonClick} style={{ width: "10%" }}>
             Fetch
           </Button>
         </Box>
+
+        {/* ── summary chips ──────────────────────────────────────── */}
+        <Box sx={{ display: "flex", gap: 1, mt: 1.5, flexWrap: "wrap", justifyContent: "center" }}>
+          {["pending", "in_progress", "resolved", "rejected"].map(s => {
+            const count = complaintsData.filter(c => c.status === s).length;
+            return count > 0 ? (
+              <Chip
+                key={s}
+                label={`${s.replace("_", " ")}: ${count}`}
+                color={STATUS_COLORS[s]}
+                size="small"
+                onClick={() => { setComplaintStatus(s); fetchComplaints(s); }}
+              />
+            ) : null;
+          })}
+        </Box>
       </Container>
+
+      {/* ── complaints grid ──────────────────────────────────────────── */}
       {complaintsData.length === 0 ? (
-      <Container
-      style={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        height: "60vh",
-      }}
-    >
-      <Typography variant="h4" gutterBottom>
-        No complaints to show
-      </Typography>
-    </Container>
-      ): (
-        <Container maxWidth = "lg" style = {{ marginTop: "40px" }}>
-      <Grid container spacing={3}>
-        {complaintsData.map((complaint) => (
-          <Grid item key={complaint.id} xs={12} sm={6} md={4}>
-            <ComplaintCard complaint={complaint} viewHandler={viewHandler} />
+        <Container style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "60vh" }}>
+          <Typography variant="h4" gutterBottom>No complaints to show</Typography>
+        </Container>
+      ) : (
+        <Container maxWidth="lg" style={{ marginTop: "40px" }}>
+          <Grid container spacing={3}>
+            {complaintsData.map((complaint) => (
+              <Grid item key={complaint._id || complaint.id} xs={12} sm={6} md={4}>
+                <ComplaintCard complaint={complaint} viewHandler={viewHandler} />
+              </Grid>
+            ))}
           </Grid>
-        ))}
-      </Grid>
-        
-    </Container>
-  )
-}
+        </Container>
+      )}
+
       <MyComplaintDialog
-          open={dialogOpen}
-          handleClose={handleDialogClose}
+        open={dialogOpen}
+        handleClose={() => setDialogOpen(false)}
         complaint={selectedComplaint}
         listCommentHandler={listCommentsHanlderFunction}
       />
+
       <CommentDialog
-            open={commentdialogOpen}
+        open={commentdialogOpen}
         comments={commentsData}
-        closeHandler = {commentsCloseHandler}
-          />
+        closeHandler={() => { setCommentDialog(false); setCommentData([]); }}
+      />
     </React.Fragment>
   );
 };

@@ -8,6 +8,7 @@ import LogInAuthPage from "./components/views/LogInAuthPage";
 import SignUpAuthPage from "./components/views/SignUpAuthPage";
 import { jwtDecode } from "jwt-decode";
 import ViewFeedback from "./components/views/ViewFeedback";
+import SuperAdminSetup from "./components/views/SuperAdminSetup";
 import ResolveComplaint from "./components/views/ResolveComplaint";
 import MyComplaints from "./components/views/MyComplaints";
 import FeedbackComplaints from "./components/views/FeedbackComplaints";
@@ -147,6 +148,7 @@ const App = () => {
             }
           />
 
+          <Route path="/setup/superadmin" element={<SuperAdminSetup />} />
           {/* ── Student routes ──────────────────────────────────────── */}
           <Route
             path="/complaints"
@@ -214,16 +216,17 @@ const App = () => {
 
           {/* ── Super Admin routes ──────────────────────────────────── */}
           <Route
-            path="/superadmin/dashboard"
-            element={
-              role === "super_admin"
-                ? <SuperAdminDashboard />
-                : <Navigate to="/login" />
-            }
-          />
+  path="/superadmin/dashboard"
+  element={
+    role === "super_admin"
+      ? <SuperAdminDashboard />
+      : <Navigate to="/login" />
+  }
+/>
 
           {/* Home */}
           <Route path="/home" element={<Home />} />
+          <Route path="/setup/superadmin" element={<SuperAdminSetup />} />
         </Routes>
       </AuthContext.Provider>
     </React.Fragment>

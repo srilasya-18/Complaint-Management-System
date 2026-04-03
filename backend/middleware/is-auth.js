@@ -24,6 +24,7 @@ const isAuth = async (req, res, next) => {
   let decodedToken;
   try {
     decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    console.log("Decoded Token:", decodedToken);
   } catch (err) {
     // token expired or tampered — just continue as unauthenticated
     return next();
@@ -32,10 +33,10 @@ const isAuth = async (req, res, next) => {
   if (!decodedToken) return next();
 
   // ── attach everything resolvers need ───────────────────────────────
-  req.isAuth     = true;
-  req.userId     = decodedToken.userId;
-  req.userRole   = decodedToken.role;        // 'student' | 'college_admin' | 'super_admin'
-  req.userCollege = decodedToken.college;    // college ObjectId string, null for super_admin
+ req.isAuth     = true;
+req.userId     = decodedToken.userId;
+req.userRole   = decodedToken.role || null;        // ✅ FIX
+req.userCollege = decodedToken.college || null;    // ✅ FIX
 
   // ── keep isDeanAuth for any old resolver code not updated yet ──────
   req.isDeanAuth = decodedToken.role === 'college_admin';

@@ -33,7 +33,7 @@ const Background = (props) => {
           </div>
           <img
             alt="This will have college"
-            src="https://cvr.ac.in/p/p97354601382443/DJI_0809.jpg"
+            src="https://media.licdn.com/dms/image/v2/D4E12AQG8UdF3R3lsmQ/article-cover_image-shrink_600_2000/article-cover_image-shrink_600_2000/0/1691683175537?e=2147483647&v=beta&t=HFtQfyFgo7YrCs4xWuSGL99-6DHCkA2JgDgFe1wHDuA"
             className="home-details-image"
           />
         </div>

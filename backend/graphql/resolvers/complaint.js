@@ -65,23 +65,30 @@ export default {
   },
 
   // ── college admin: list complaints scoped to their college ─────────
-  listCollegeComplaints: async ({ status, priority }, req) => {
-    if (!req.isAuth || req.userRole !== 'college_admin') {
-      throw new Error(errorNames.UNAUTHORIZED_CLIENT);
-    }
-    let conditions = { college: req.userCollege };
-    if (status)   conditions.status = status;
-    if (priority) conditions.priority = priority;
+listCollegeComplaints: async ({ status, priority }, req) => {
+  if (!req.isAuth || req.userRole !== 'college_admin') {
+    throw new Error(errorNames.UNAUTHORIZED_CLIENT);
+  }
 
-    try {
-      const complaints = await Complaint.find(conditions)
-        .sort({ createdAt: -1 });
-      return complaints.map(c => transformComplaint(c));
-    } catch (err) {
-      throw err;
-    }
-  },
+  let conditions = { college: req.userCollege };
+  if (status)   conditions.status = status;
+  if (priority) conditions.priority = priority;
 
+  try {
+    const complaints = await Complaint.find(conditions)
+      .populate('college')
+      .populate('complainee')
+      .populate('resolvedBy')
+      .populate('assignedTo')
+      .populate('statusHistory.changedBy')
+      .sort({ createdAt: -1 });
+
+    console.log("found:", complaints.length);  // remove after confirmed working
+    return complaints.map(c => transformComplaint(c));
+  } catch (err) {
+    throw err;
+  }
+},
   // ── super admin: list ALL complaints across all colleges ───────────
   listAllComplaints: async ({ status, collegeId }, req) => {
     if (!req.isAuth || req.userRole !== 'super_admin') {

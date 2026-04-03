@@ -117,7 +117,7 @@ export default function SignUpAuthPage() {
                 helperText={
                   emailDomain
                     ? `✅ College domain detected: ${emailDomain}`
-                    : "Use your official college email (e.g. 23b81a05y7@cvr.ac.in)"
+                    : "Use your official college email (e.g. 23b81a0xxx@cvr.ac.in)"
                 }
               />
 

@@ -6,6 +6,14 @@ export const LIST_COMPLAINTS_FEW = gql`
       _id
       complaint_category
       section
+      department
+      status
+      priority
+      createdAt
+      photos {
+        url
+        sizeKB
+      }
       complainee {
         name
       }
@@ -34,6 +42,12 @@ export const VIEW_COMPLAINT = gql`
         status
         upvotes
         views
+        photos {
+          url
+          filename
+          originalName
+          sizeKB
+        }
         complainee {
           _id
         }
@@ -94,8 +108,6 @@ export const UPVOTE_COMPLAINT = gql`
   }
 `;
 
-// ── new: college admin dashboard ──────────────────────────────────────
-
 export const LIST_COLLEGE_COMPLAINTS = gql`
   query LIST_COLLEGE_COMPLAINTS($status: String, $priority: String) {
     listCollegeComplaints(status: $status, priority: $priority) {
@@ -125,9 +137,6 @@ export const LIST_COLLEGE_COMPLAINTS = gql`
         status
         note
         changedAt
-        changedBy {
-          name
-        }
       }
       college {
         _id
@@ -146,9 +155,6 @@ export const UPDATE_COMPLAINT_STATUS = gql`
         status
         note
         changedAt
-        changedBy {
-          name
-        }
       }
     }
   }

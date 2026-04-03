@@ -11,7 +11,7 @@ const Heading = () => {
         component="div"
         sx={{ display: { sm: "block" } }}
       >
-        CVR CRS
+        CRS
       </Typography>
     </Box>
   );

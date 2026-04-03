@@ -26,23 +26,21 @@ import { jwtDecode } from "jwt-decode";
 
 const defaultTheme = createTheme();
 
-// label shown in the ID field for each role
 const IDENTITY_LABELS = {
-  student:      "Roll Number",
-  collegeAdmin: "Admin ID",
-  superadmin:   "Super Admin ID",
+  student:       "Roll Number",
+  college_admin: "Admin ID",
+  super_admin:   "Super Admin ID",
 };
 
-// where each role lands after login
 const ROLE_REDIRECTS = {
-  student:      "/complaints/me",
-  collegeAdmin: "/college/dashboard",
-  superadmin:   "/admin/dashboard",
+  student:       "/complaints/me",
+  college_admin: "/admin/dashboard",
+  super_admin:   "/superadmin/dashboard",
 };
 
 export default function LogInAuthPage() {
-  const [role, setRole]               = React.useState("student");
-  const [severity, setSnackSeverity]  = React.useState("");
+  const [role, setRole]                 = React.useState("student");
+  const [severity, setSnackSeverity]    = React.useState("");
   const [snackMessage, setSnackMessage] = React.useState("");
 
   const client      = useApolloClient();
@@ -68,14 +66,14 @@ export default function LogInAuthPage() {
         variables: { logInput },
       });
 
-      const parsed_token  = jwtDecode(res?.data?.login?.token);
-      const tokenRole     = parsed_token.role;   // trust the token, not the radio
+      const parsed_token = jwtDecode(res?.data?.login?.token);
+      const tokenRole    = parsed_token.role;
 
       const new_userstore = {
-        userId: parsed_token.userId,
-        role:   tokenRole,
-        token:  res?.data?.login?.token,
-        ...(parsed_token.collegeId && { collegeId: parsed_token.collegeId }),
+        userId:  parsed_token.userId,
+        role:    tokenRole,
+        token:   res?.data?.login?.token,
+        college: parsed_token.college || null,  // ← correct field name
       };
 
       setSnackMessage("Logged in successfully. Redirecting...");
@@ -116,29 +114,27 @@ export default function LogInAuthPage() {
 
             <Box component="form" onSubmit={handleSubmit} noValidate={false} sx={{ mt: 1 }}>
 
-              {/* Role selector — 3 roles, Dean removed */}
+              {/* Role selector */}
               <FormControl sx={{ mt: 1, mb: 1 }} fullWidth>
                 <FormLabel>Role</FormLabel>
                 <RadioGroup row value={role} onChange={handleRole}>
-                  <FormControlLabel value="student"      control={<Radio />} label="Student" />
-                  <FormControlLabel value="collegeAdmin" control={<Radio />} label="College Admin" />
-                  <FormControlLabel value="superadmin"   control={<Radio />} label="Super Admin" />
+                  <FormControlLabel value="student"       control={<Radio />} label="Student" />
+                  <FormControlLabel value="college_admin" control={<Radio />} label="College Admin" />
+                  <FormControlLabel value="super_admin"   control={<Radio />} label="Super Admin" />
                 </RadioGroup>
               </FormControl>
 
-              {/* role-aware hint */}
-              {role === "collegeAdmin" && (
+              {role === "college_admin" && (
                 <Alert severity="info" sx={{ mb: 1 }}>
                   College admin accounts are created by the Super Admin.
                 </Alert>
               )}
-              {role === "superadmin" && (
+              {role === "super_admin" && (
                 <Alert severity="warning" sx={{ mb: 1 }}>
                   Super Admin access — platform-wide permissions.
                 </Alert>
               )}
 
-              {/* ID field — label changes with role */}
               <TextField
                 margin="normal"
                 required
@@ -150,7 +146,6 @@ export default function LogInAuthPage() {
                 autoFocus
               />
 
-              {/* Password */}
               <TextField
                 margin="normal"
                 required

@@ -78,19 +78,22 @@ const userSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
-    // super_admin can set this false to suspend a user
-  },
+  }
+
+}, {
+  timestamps: true   // ✅ CORRECT PLACE (second argument)
+});
 
   // ── existing timestamp (kept, and added updatedAt) ────────────────
-  createdAt: {
-    type: Date,
-    default: Date.now   // changed from null → auto-set on creation
-  },
-  updatedAt: {
-    type: Date,
-    default: null
-  }
-});
+  // createdAt: {
+  //   type: Date,
+  //   default: Date.now   // changed from null → auto-set on creation
+  // },
+  // updatedAt: {
+  //   type: Date,
+  //   default: null
+  // }
+
 
 // ── auto-update updatedAt on every save ───────────────────────────────
 userSchema.pre('save', function (next) {

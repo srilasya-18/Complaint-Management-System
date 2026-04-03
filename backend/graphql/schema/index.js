@@ -68,7 +68,7 @@ const complaint_schema = buildSchema(`
     resolvedAt: String
     updatedAt: String
     complainee: User!
-    college: College!
+    college: College
     assignedTo: User
     statusHistory: [StatusHistory!]!
     photos: [Photo!]!
@@ -91,7 +91,7 @@ const complaint_schema = buildSchema(`
     resolvedAt: String!
     updatedAt: String
     complainee: User!
-    college: College!
+    college: College
     assignedTo: User
     statusHistory: [StatusHistory!]!
     photos: [Photo!]!
@@ -237,6 +237,7 @@ input ComplaintInput {
     toggleCollegeStatus(collegeId: ID!): College
     createCollegeAdmin(userInput: UserInput!, collegeId: ID!): User
     toggleUserStatus(userId: ID!): User
+    createSuperAdmin(userInput: UserInput!, secretCode: String!): User
   }
 
   schema {

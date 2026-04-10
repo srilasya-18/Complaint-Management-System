@@ -23,11 +23,8 @@ import {
 const CollegeCard = ({ college, stats, onAddAdmin, onToggle }) => (
   <Card sx={{ height: "100%", display: "flex", flexDirection: "column", borderRadius: 2, boxShadow: 3 }}>
     <CardContent sx={{ flexGrow: 1 }}>
-
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-        <Typography variant="h6" fontWeight={700}>
-          {college.code}
-        </Typography>
+        <Typography variant="h6" fontWeight={700}>{college.code}</Typography>
         <Chip
           label={college.isActive ? "Active" : "Inactive"}
           color={college.isActive ? "success" : "error"}
@@ -42,16 +39,24 @@ const CollegeCard = ({ college, stats, onAddAdmin, onToggle }) => (
       )}
 
       {/* complaint stats */}
-      {stats && (
+      {stats ? (
         <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap" }}>
-          <Chip label={`Total: ${stats.totalComplaints}`}       size="small" />
-          <Chip label={`Pending: ${stats.pendingCount}`}        size="small" color="warning" />
-          <Chip label={`In Progress: ${stats.inProgressCount}`} size="small" color="info"    />
-          <Chip label={`Resolved: ${stats.resolvedCount}`}      size="small" color="success" />
-          <Chip label={`Rejected: ${stats.rejectedCount}`}      size="small" color="error"   />
+          <Chip label={`Total: ${stats.totalComplaints}`}        size="small" />
+          <Chip label={`Pending: ${stats.pendingCount}`}         size="small" color="warning" />
+          <Chip label={`In Progress: ${stats.inProgressCount}`}  size="small" color="info"    />
+          <Chip label={`Resolved: ${stats.resolvedCount}`}       size="small" color="success" />
+          <Chip label={`Rejected: ${stats.rejectedCount}`}       size="small" color="error"   />
+        </Box>
+      ) : (
+        // ✅ FIX 1: Show placeholder chips when stats haven't loaded yet
+        <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap" }}>
+          <Chip label="Total: 0"       size="small" />
+          <Chip label="Pending: 0"     size="small" color="warning" />
+          <Chip label="In Progress: 0" size="small" color="info"    />
+          <Chip label="Resolved: 0"    size="small" color="success" />
+          <Chip label="Rejected: 0"    size="small" color="error"   />
         </Box>
       )}
-
     </CardContent>
 
     <Divider />
@@ -76,7 +81,7 @@ const CollegeCard = ({ college, stats, onAddAdmin, onToggle }) => (
 const SuperAdminDashboard = () => {
   const [activeTab, setActiveTab]         = useState(0);
   const [collegesData, setCollegesData]   = useState([]);
-  const [statsMap, setStatsMap]           = useState({});   // collegeId → stats
+  const [statsMap, setStatsMap]           = useState({});
   const [backDrop, setBackDrop]           = useState(false);
   const [hardloading, setHardLoading]     = useState(false);
   const [severity, setSnackSeverity]      = useState("");
@@ -84,13 +89,13 @@ const SuperAdminDashboard = () => {
   const [bottomSeverity, setBottomSnackSeverity]   = useState("");
   const [bottomSnackMessage, setBottomSnackMessage] = useState("");
 
-  // ── add college dialog state ────────────────────────────────────────
+  // ── add college dialog state ─────────────────────────────────────────
   const [collegeDialog, setCollegeDialog] = useState(false);
   const [collegeInput, setCollegeInput]   = useState({
     name: "", emailDomain: "", code: "", location: ""
   });
 
-  // ── add admin dialog state ──────────────────────────────────────────
+  // ── add admin dialog state ───────────────────────────────────────────
   const [adminDialog, setAdminDialog]     = useState(false);
   const [targetCollege, setTargetCollege] = useState(null);
   const [adminInput, setAdminInput]       = useState({
@@ -100,17 +105,22 @@ const SuperAdminDashboard = () => {
   const authContext = React.useContext(AuthContext);
   const client      = useApolloClient();
 
-  // ── fetch colleges ──────────────────────────────────────────────────
+  // ✅ FIX 2: Read the global search term from AuthContext
+  const searchTerm = authContext.search || "";
+
+  // ── fetch colleges ───────────────────────────────────────────────────
   const { loading, error, data } = useQuery(LIST_COLLEGES, {
-    fetchPolicy: "network-only"
+    fetchPolicy: "network-only",
   });
 
-  // ── fetch stats ─────────────────────────────────────────────────────
-  const { data: statsData } = useQuery(GET_COLLEGE_STATS, {
-    fetchPolicy: "network-only"
-  });
-
-  // ── snack helpers (same pattern as your other components) ───────────
+  // ✅ FIX 3: Fetch stats with pollInterval so they stay fresh
+const { data: statsData, loading: statsLoading, error: statsError } = useQuery(GET_COLLEGE_STATS, {
+  fetchPolicy: "network-only",
+  pollInterval: 30000,
+  onCompleted: (d) => console.log("✅ Stats data:", JSON.stringify(d, null, 2)),
+  onError: (err) => console.log("❌ Stats error:", err.message),
+});
+  // ── snack helpers ─────────────────────────────────────────────────────
   const showSnack = (sev, msg) => {
     setSnackSeverity("");
     setSnackMessage(msg);
@@ -123,12 +133,12 @@ const SuperAdminDashboard = () => {
     setBottomSnackSeverity(sev);
   };
 
-  const handleAuthError = (error) => {
-    if (error.message === "Unauthorized client in the scope") {
+  const handleAuthError = (err) => {
+    if (err.message === "Unauthorized client in the scope") {
       showSnack("error", "Session Timed Out. Please LogIn again!");
       authContext.logout();
     } else {
-      showSnack("error", `Error: ${error?.message}`);
+      showSnack("error", `Error: ${err?.message}`);
     }
   };
 
@@ -138,10 +148,10 @@ const SuperAdminDashboard = () => {
 
   useEffect(() => {
     if (statsData?.getCollegeStats) {
-      // build a map: collegeId → stats for easy lookup in cards
       const map = {};
       statsData.getCollegeStats.forEach(s => {
-        map[s.college._id] = s;
+        // ✅ FIX 4: Guard against missing college reference in stats
+        if (s?.college?._id) map[s.college._id] = s;
       });
       setStatsMap(map);
     }
@@ -152,23 +162,22 @@ const SuperAdminDashboard = () => {
   }, [error]);
 
   useEffect(() => {
-    setBackDrop(hardloading || loading);
-  }, [hardloading, loading]);
+    setBackDrop(hardloading || loading || statsLoading);
+  }, [hardloading, loading, statsLoading]);
 
-  // ── overall totals across all colleges ──────────────────────────────
+  // ── overall totals ────────────────────────────────────────────────────
   const totals = Object.values(statsMap).reduce((acc, s) => {
-    acc.total      += s.totalComplaints;
-    acc.pending    += s.pendingCount;
-    acc.inProgress += s.inProgressCount;
-    acc.resolved   += s.resolvedCount;
-    acc.rejected   += s.rejectedCount;
+    acc.total      += s.totalComplaints  ?? 0;
+    acc.pending    += s.pendingCount     ?? 0;
+    acc.inProgress += s.inProgressCount  ?? 0;
+    acc.resolved   += s.resolvedCount    ?? 0;
+    acc.rejected   += s.rejectedCount    ?? 0;
     return acc;
   }, { total: 0, pending: 0, inProgress: 0, resolved: 0, rejected: 0 });
 
-  // ── add college ──────────────────────────────────────────────────────
-  const handleCollegeInputChange = (field) => (e) => {
+  // ── add college ───────────────────────────────────────────────────────
+  const handleCollegeInputChange = (field) => (e) =>
     setCollegeInput(prev => ({ ...prev, [field]: e.target.value }));
-  };
 
   const submitAddCollege = async () => {
     if (!collegeInput.name || !collegeInput.emailDomain || !collegeInput.code) {
@@ -179,28 +188,31 @@ const SuperAdminDashboard = () => {
       await client.mutate({
         mutation: CREATE_COLLEGE,
         variables: { collegeInput },
-        refetchQueries: ["LIST_COLLEGES", "GET_COLLEGE_STATS"],
+        // ✅ FIX 5: Use the actual query document, not a string name
+        refetchQueries: [
+          { query: LIST_COLLEGES },
+          { query: GET_COLLEGE_STATS },
+        ],
       });
       showBottomSnack("success", `College "${collegeInput.name}" created successfully`);
       setCollegeDialog(false);
       setCollegeInput({ name: "", emailDomain: "", code: "", location: "" });
-    } catch (error) {
-      handleAuthError(error);
+    } catch (err) {
+      handleAuthError(err);
     } finally {
       setHardLoading(false);
     }
   };
 
-  // ── add college admin ────────────────────────────────────────────────
+  // ── add college admin ─────────────────────────────────────────────────
   const openAdminDialog = (college) => {
     setTargetCollege(college);
     setAdminInput({ name: "", identification_num: "", email: "", password: "" });
     setAdminDialog(true);
   };
 
-  const handleAdminInputChange = (field) => (e) => {
+  const handleAdminInputChange = (field) => (e) =>
     setAdminInput(prev => ({ ...prev, [field]: e.target.value }));
-  };
 
   const submitAddAdmin = async () => {
     if (!adminInput.name || !adminInput.email || !adminInput.password) {
@@ -210,43 +222,53 @@ const SuperAdminDashboard = () => {
     try {
       await client.mutate({
         mutation: CREATE_COLLEGE_ADMIN,
-        variables: {
-          userInput: adminInput,
-          collegeId: targetCollege._id
-        },
+        variables: { userInput: adminInput, collegeId: targetCollege._id },
       });
       showBottomSnack("success", `Admin created for ${targetCollege.name}`);
       setAdminDialog(false);
-    } catch (error) {
-      handleAuthError(error);
+    } catch (err) {
+      handleAuthError(err);
     } finally {
       setHardLoading(false);
     }
   };
 
-  // ── toggle college active/inactive ──────────────────────────────────
+  // ── toggle college ─────────────────────────────────────────────────────
   const handleToggleCollege = async (collegeId) => {
     setHardLoading(true);
     try {
       await client.mutate({
         mutation: TOGGLE_COLLEGE_STATUS,
         variables: { collegeId },
-        refetchQueries: ["LIST_COLLEGES"],
+        // ✅ FIX 5 (same): use query document instead of string
+        refetchQueries: [{ query: LIST_COLLEGES }],
       });
       showBottomSnack("success", "College status updated");
-    } catch (error) {
-      handleAuthError(error);
+    } catch (err) {
+      handleAuthError(err);
     } finally {
       setHardLoading(false);
     }
   };
+  
 
-  // ── filter colleges by tab ───────────────────────────────────────────
-  const filteredColleges = activeTab === 0
-    ? collegesData
-    : activeTab === 1
-      ? collegesData.filter(c => c.isActive)
-      : collegesData.filter(c => !c.isActive);
+  // ✅ FIX 6: Apply both tab filter AND search term together
+  const filteredColleges = collegesData
+    .filter(c => {
+      if (activeTab === 1) return c.isActive;
+      if (activeTab === 2) return !c.isActive;
+      return true;
+    })
+    .filter(c => {
+      if (!searchTerm.trim()) return true;
+      const q = searchTerm.toLowerCase();
+      return (
+        c.name?.toLowerCase().includes(q)        ||
+        c.code?.toLowerCase().includes(q)        ||
+        c.emailDomain?.toLowerCase().includes(q) ||
+        c.location?.toLowerCase().includes(q)
+      );
+    });
 
   return (
     <React.Fragment>
@@ -261,22 +283,27 @@ const SuperAdminDashboard = () => {
 
         {/* header */}
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-          <Typography variant="h5" fontWeight={700}>
-            Super Admin Dashboard
-          </Typography>
+          <Typography variant="h5" fontWeight={700}>Super Admin Dashboard</Typography>
           <Button variant="contained" onClick={() => setCollegeDialog(true)}>
             + Add College
           </Button>
         </Box>
 
+        {/* ✅ FIX 7: Show active search indicator */}
+        {searchTerm.trim() && (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Showing results for: <strong>"{searchTerm}"</strong> ({filteredColleges.length} found)
+          </Typography>
+        )}
+
         {/* overall stats */}
         <Box sx={{ display: "flex", gap: 1.5, mb: 3, flexWrap: "wrap" }}>
-          <Chip label={`Colleges: ${collegesData.length}`}     color="default"  />
-          <Chip label={`Total Complaints: ${totals.total}`}    color="default"  />
-          <Chip label={`Pending: ${totals.pending}`}           color="warning"  />
-          <Chip label={`In Progress: ${totals.inProgress}`}    color="info"     />
-          <Chip label={`Resolved: ${totals.resolved}`}         color="success"  />
-          <Chip label={`Rejected: ${totals.rejected}`}         color="error"    />
+          <Chip label={`Colleges: ${collegesData.length}`}     color="default" />
+          <Chip label={`Total Complaints: ${totals.total}`}    color="default" />
+          <Chip label={`Pending: ${totals.pending}`}           color="warning" />
+          <Chip label={`In Progress: ${totals.inProgress}`}    color="info"    />
+          <Chip label={`Resolved: ${totals.resolved}`}         color="success" />
+          <Chip label={`Rejected: ${totals.rejected}`}         color="error"   />
         </Box>
 
         {/* tabs */}
@@ -285,15 +312,17 @@ const SuperAdminDashboard = () => {
           onChange={(_, v) => setActiveTab(v)}
           sx={{ mb: 3, borderBottom: 1, borderColor: "divider" }}
         >
-          <Tab label="All Colleges" />
-          <Tab label="Active" />
-          <Tab label="Inactive" />
+          <Tab label={`All (${collegesData.length})`} />
+          <Tab label={`Active (${collegesData.filter(c => c.isActive).length})`} />
+          <Tab label={`Inactive (${collegesData.filter(c => !c.isActive).length})`} />
         </Tabs>
 
         {/* colleges grid */}
         {filteredColleges.length === 0 ? (
           <Container style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "50vh" }}>
-            <Typography variant="h5">No colleges found</Typography>
+            <Typography variant="h5">
+              {searchTerm.trim() ? `No colleges match "${searchTerm}"` : "No colleges found"}
+            </Typography>
           </Container>
         ) : (
           <Grid container spacing={3}>
@@ -312,7 +341,7 @@ const SuperAdminDashboard = () => {
 
       </Container>
 
-      {/* ── Add College Dialog ─────────────────────────────────────── */}
+      {/* ── Add College Dialog ──────────────────────────────────────── */}
       <Dialog open={collegeDialog} onClose={() => setCollegeDialog(false)} fullWidth maxWidth="sm">
         <DialogTitle>Add New College</DialogTitle>
         <DialogContent>
@@ -341,7 +370,7 @@ const SuperAdminDashboard = () => {
         </DialogActions>
       </Dialog>
 
-      {/* ── Add Admin Dialog ───────────────────────────────────────── */}
+      {/* ── Add Admin Dialog ────────────────────────────────────────── */}
       <Dialog open={adminDialog} onClose={() => setAdminDialog(false)} fullWidth maxWidth="sm">
         <DialogTitle>Add Admin for {targetCollege?.name}</DialogTitle>
         <DialogContent>

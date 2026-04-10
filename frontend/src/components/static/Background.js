@@ -202,7 +202,7 @@ const Background = (props) => {
         <footer className="home-footer1">
           <div className="home-container33">
             <span className="home-text61">
-              © 2024 Complaint Registration System, All Rights Reserved.
+              © 2026 Complaint Registration System, All Rights Reserved.
             </span>
             <div className="home-icon-group1">
               <svg viewBox="0 0 950.8571428571428 1024" className="home-icon10">

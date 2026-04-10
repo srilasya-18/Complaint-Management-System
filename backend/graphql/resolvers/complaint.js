@@ -108,39 +108,74 @@ listCollegeComplaints: async ({ status, priority }, req) => {
   },
 
   // ── super admin: stats per college ────────────────────────────────
-  getCollegeStats: async (args, req) => {
-    if (!req.isAuth || req.userRole !== 'super_admin') {
-      throw new Error(errorNames.UNAUTHORIZED_CLIENT);
-    }
-    try {
-      const stats = await Complaint.aggregate([
-        {
-          $group: {
-            _id: '$college',
-            totalComplaints: { $sum: 1 },
-            pendingCount:    { $sum: { $cond: [{ $eq: ['$status', 'pending'] },    1, 0] } },
-            inProgressCount: { $sum: { $cond: [{ $eq: ['$status', 'in_progress'] }, 1, 0] } },
-            resolvedCount:   { $sum: { $cond: [{ $eq: ['$status', 'resolved'] },   1, 0] } },
-            rejectedCount:   { $sum: { $cond: [{ $eq: ['$status', 'rejected'] },   1, 0] } },
+getCollegeStats: async (args, req) => {
+  if (!req.isAuth || req.userRole !== 'super_admin') {
+    throw new Error("Unauthorized");
+  }
+
+  try {
+    const stats = await Complaint.aggregate([
+      {
+        $group: {
+          _id: '$college',
+          totalComplaints: { $sum: 1 },
+          pendingCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] }
+          },
+          inProgressCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'in-progress'] }, 1, 0] }
+          },
+          resolvedCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'resolved'] }, 1, 0] }
+          },
+          rejectedCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] }
           }
         }
-      ]);
+      },
+      {
+        $lookup: {
+          from: "colleges",
+          localField: "_id",
+          foreignField: "_id",
+          as: "college"
+        }
+      },
+      {
+        $unwind: "$college"
+      }
+    ]);
 
-      // populate college details for each stat entry
-      const College = (await import('../../models/college.js')).default;
-      return await Promise.all(
-        stats.map(async s => ({
-          college: await College.findById(s._id),
-          totalComplaints: s.totalComplaints,
-          pendingCount:    s.pendingCount,
-          inProgressCount: s.inProgressCount,
-          resolvedCount:   s.resolvedCount,
-          rejectedCount:   s.rejectedCount,
-        }))
-      );
-    } catch (err) {
-      throw err;
-    }
+    return stats.map(s => ({
+      college: s.college,
+      totalComplaints: s.totalComplaints,
+      pendingCount: s.pendingCount,
+      inProgressCount: s.inProgressCount,
+      resolvedCount: s.resolvedCount,
+      rejectedCount: s.rejectedCount,
+    }));
+
+  } catch (err) {
+    console.log("Stats Error:", err);
+    throw err;
+  }
+// }
+
+//       // populate college details for each stat entry
+//       const College = (await import('../../models/college.js')).default;
+//       return await Promise.all(
+//         stats.map(async s => ({
+//           college: await College.findById(s._id),
+//           totalComplaints: s.totalComplaints,
+//           pendingCount:    s.pendingCount,
+//           inProgressCount: s.inProgressCount,
+//           resolvedCount:   s.resolvedCount,
+//           rejectedCount:   s.rejectedCount,
+//         }))
+//       );
+//     } catch (err) {
+//       throw err;
+//     }
   },
 
   // ── college admin: update complaint status ─────────────────────────

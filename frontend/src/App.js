@@ -14,21 +14,21 @@ import MyComplaints from "./components/views/MyComplaints";
 import FeedbackComplaints from "./components/views/FeedbackComplaints";
 
 // ── new imports for new roles ──────────────────────────────────────────
-import SuperAdminDashboard from "./components/views/SuperAdminDashboard"; // new
-import CollegeAdminDashboard from "./components/views/CollegeAdminDashboard"; // new
+import SuperAdminDashboard from "./components/views/SuperAdminDashboard";
+import CollegeAdminDashboard from "./components/views/CollegeAdminDashboard";
 
 /* Default State */
 const default_userstore = {
   userId: null,
   role: null,
   token: null,
-  college: null,   // ← added: which college this user belongs to
+  college: null,
   search: "",
 };
 
 export const AuthContext = React.createContext();
 
-/* Get Token */
+/* Get Token — now checks expiry */
 const getTokenFromCookie = (cookieName) => {
   const name = cookieName + "=";
   const decodedCookie = decodeURIComponent(document.cookie);
@@ -39,15 +39,23 @@ const getTokenFromCookie = (cookieName) => {
 
     if (cookie.indexOf(name) === 0) {
       let final_token = cookie.substring(name.length);
-      let parsed_token = jwtDecode(final_token);
+      try {                                              // ← fix 1: wrap in try/catch
+        let parsed_token = jwtDecode(final_token);
 
-      return {
-        userId: parsed_token.userId,
-        role: parsed_token.role,
-        college: parsed_token.college || null,  // ← pulled from JWT
-        token: final_token,
-        search: "",
-      };
+        if (parsed_token.exp * 1000 < Date.now()) {    // ← fix 2: check expiry
+          return null;                                   // expired → treat as logged out
+        }
+
+        return {
+          userId:  parsed_token.userId,
+          role:    parsed_token.role,
+          college: parsed_token.college || null,
+          token:   final_token,
+          search:  "",
+        };
+      } catch {
+        return null;                                     // invalid token → logged out
+      }
     }
   }
 };
@@ -81,13 +89,11 @@ const App = () => {
     });
   };
 
-  /* Logout */
+  /* Logout — navigate immediately, no setTimeout */
   const logOutHandler = () => {
     deleteCookie("secretToken");
     setUserstore(default_userstore);
-    setTimeout(() => {
-      navigate("/login");
-    }, 1000);
+    navigate("/login");                                  // ← fix 3: no setTimeout
   };
 
   /* Search Handler */
@@ -100,6 +106,7 @@ const App = () => {
 
   const { token, userId, role, college } = userStore;
   const homeRoute = getHomeRoute(role);
+  const isLoggedIn = !!(token && userId);               // ← cleaner check
 
   return (
     <React.Fragment>
@@ -108,7 +115,7 @@ const App = () => {
           token,
           userId,
           role,
-          college,           // ← now available anywhere via useContext(AuthContext)
+          college,
           search: userStore.search,
           login: logInHandler,
           logout: logOutHandler,
@@ -122,7 +129,7 @@ const App = () => {
           <Route
             path="/"
             element={
-              token && userId
+              isLoggedIn
                 ? <Navigate to={homeRoute} />
                 : <Navigate to="/home" />
             }
@@ -132,7 +139,7 @@ const App = () => {
           <Route
             path="/login"
             element={
-              !token
+              !isLoggedIn
                 ? <LogInAuthPage />
                 : <Navigate to={homeRoute} />
             }
@@ -142,13 +149,15 @@ const App = () => {
           <Route
             path="/signup"
             element={
-              !token
+              !isLoggedIn
                 ? <SignUpAuthPage />
                 : <Navigate to={homeRoute} />
             }
           />
 
+          {/* Super admin setup — public */}
           <Route path="/setup/superadmin" element={<SuperAdminSetup />} />
+
           {/* ── Student routes ──────────────────────────────────────── */}
           <Route
             path="/complaints"
@@ -186,7 +195,7 @@ const App = () => {
             }
           />
 
-          {/* ── College Admin routes (replaces dean) ───────────────── */}
+          {/* ── College Admin routes ────────────────────────────────── */}
           <Route
             path="/view"
             element={
@@ -216,17 +225,17 @@ const App = () => {
 
           {/* ── Super Admin routes ──────────────────────────────────── */}
           <Route
-  path="/superadmin/dashboard"
-  element={
-    role === "super_admin"
-      ? <SuperAdminDashboard />
-      : <Navigate to="/login" />
-  }
-/>
+            path="/superadmin/dashboard"
+            element={
+              role === "super_admin"
+                ? <SuperAdminDashboard />
+                : <Navigate to="/login" />
+            }
+          />
 
           {/* Home */}
           <Route path="/home" element={<Home />} />
-          <Route path="/setup/superadmin" element={<SuperAdminSetup />} />
+
         </Routes>
       </AuthContext.Provider>
     </React.Fragment>

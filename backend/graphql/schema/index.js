@@ -126,13 +126,17 @@ const complaint_schema = buildSchema(`
 
   # ── Super admin dashboard stats ───────────────────────────────────────
   type CollegeStats {
-    college: College!
-    totalComplaints: Int!
-    pendingCount: Int!
-    inProgressCount: Int!
-    resolvedCount: Int!
-    rejectedCount: Int!
-  }
+  college: College
+  totalComplaints: Int
+  pendingCount: Int
+  inProgressCount: Int
+  resolvedCount: Int
+  rejectedCount: Int
+}
+
+type Query {
+  getCollegeStats: [CollegeStats]
+}
 
   # ── Inputs ────────────────────────────────────────────────────────────
   input PhotoInput {
